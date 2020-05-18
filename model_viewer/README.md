@@ -1,1 +1,2 @@
-# export PROJECT_ROOT=$PWD
+# Project setup
+export PROJECT_ROOT=$PWD
