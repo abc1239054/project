@@ -271,9 +271,7 @@ void init(Context& ctx)
 
     createRawData(ctx);
     createCube(ctx);
-    for(int i=0;i<ctx.verticesSize;i+=3){
-        printf("%f %f %f\n", ctx.vertices[i], ctx.vertices[i+1], ctx.vertices[i+2]);
-    }
+
     ctx.seed=(99999 - 10000) * rand() / (RAND_MAX + 1.0) + 10000;
 }
 
