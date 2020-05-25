@@ -1,4 +1,4 @@
-// Assignment 3, Part 1 and 2
+// Project :)
 //
 // Modify this file according to the lab instructions.
 //
