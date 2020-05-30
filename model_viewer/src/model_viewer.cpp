@@ -22,9 +22,11 @@
 #include <cstdlib>
 #include <algorithm>
 #include <time.h>
-#define TERRA_WIDTH 64
-#define TERRA_LENGTH 64
+#define TERRA_WIDTH 128
+#define TERRA_LENGTH 128
 #define TERRA_SCALE 0.2f
+
+
 
 // The attribute locations we will use in the vertex shader
 enum AttributeLocation {
@@ -68,8 +70,10 @@ struct Context {
     GLuint defaultVAO;
     GLfloat *vertices;
     GLuint *indices;
+    glm::vec3* faces;
     int verticesSize = 0;
     int indicesSize = 0;
+    int facesSize = 0;
     GLuint cubemap;
     float elapsed_time;
     float seed;
@@ -186,39 +190,80 @@ void initializeTrackball(Context& ctx)
 }
 
 void createRawData(Context &ctx){
-    ctx.verticesSize = 9 * (TERRA_LENGTH + 1) * (TERRA_WIDTH + 1);
-    ctx.vertices =  new GLfloat[ctx.verticesSize]();
+    ctx.verticesSize = 12 * (TERRA_LENGTH + 1) * (TERRA_WIDTH + 1);
+    ctx.vertices =  new GLfloat[ctx.verticesSize];
     for (int i = 0; i <= TERRA_LENGTH; ++i)
         for (int j = 0; j <= TERRA_WIDTH; ++j) {
-            ctx.vertices[9 * (i * (TERRA_WIDTH + 1) + j)] = 0.0 + j * TERRA_SCALE;
-            ctx.vertices[9 * (i * (TERRA_WIDTH + 1) + j) + 1] = 0.0;
-            ctx.vertices[9 * (i * (TERRA_WIDTH + 1) + j) + 2] = 0.0 + i * TERRA_SCALE;
+            int n = 12 * (i * (TERRA_WIDTH + 1) + j);
+            ctx.vertices[n] = 0.0 + TERRA_SCALE * j;
+            ctx.vertices[n + 1] = 0.0;
+            ctx.vertices[n + 2] = 0.0 + TERRA_SCALE * i;
 
-            ctx.vertices[9 * (i * (TERRA_WIDTH + 1) + j) + 3] = 1.0;
-            ctx.vertices[9 * (i * (TERRA_WIDTH + 1) + j) + 4] = 1.0;
-            ctx.vertices[9 * (i * (TERRA_WIDTH + 1) + j) + 5] = 1.0;
+            ctx.vertices[n + 3] = 1.0;
+            ctx.vertices[n + 4] = 1.0;
+            ctx.vertices[n + 5] = 1.0;
 
-            ctx.vertices[9 * (i * (TERRA_WIDTH + 1) + j) + 6] = i % 2;
-            ctx.vertices[9 * (i * (TERRA_WIDTH + 1) + j) + 7] = j % 2;
+            ctx.vertices[n + 6] = i % 2;
+            ctx.vertices[n + 7] = j % 2;
 
-            ctx.vertices[9 * (i * (TERRA_WIDTH + 1) + j) + 8] = 0.0;
-
-
-    }
+            ctx.vertices[n + 8] = sin(j * 0.2) + cos(i * 0.3) + (0.2 - (-0.2)) * rand() / (RAND_MAX + 1.0) - 0.2;
+        }
 
     ctx.indicesSize = 6 * TERRA_LENGTH * TERRA_WIDTH;
     ctx.indices = new GLuint[ctx.indicesSize];
     for (GLuint i = 0; i < TERRA_LENGTH; ++i)
         for (GLuint j = 0; j < TERRA_WIDTH; ++j) {
-            ctx.indices[6 * (i * TERRA_WIDTH + j)] = i * (TERRA_WIDTH + 1) + j + 1 ;
-            ctx.indices[6 * (i * TERRA_WIDTH + j) + 1] = i * (TERRA_WIDTH + 1) + j;
+            ctx.indices[6 * (i * TERRA_WIDTH + j)] = i * (TERRA_WIDTH + 1) + j;
+            ctx.indices[6 * (i * TERRA_WIDTH + j) + 1] = i * (TERRA_WIDTH + 1) + j + 1;
             ctx.indices[6 * (i * TERRA_WIDTH + j) + 2] = (i + 1) * (TERRA_WIDTH + 1) + j;
 
-            ctx.indices[6 * (i * TERRA_WIDTH + j) + 3] = (i + 1) * (TERRA_WIDTH + 1) + j;
-            ctx.indices[6 * (i * TERRA_WIDTH + j) + 4] = (i + 1) * (TERRA_WIDTH + 1) + 1 + j;
+            ctx.indices[6 * (i * TERRA_WIDTH + j) + 3] = (i + 1) * (TERRA_WIDTH + 1) + 1 + j;
+            ctx.indices[6 * (i * TERRA_WIDTH + j) + 4] = (i + 1) * (TERRA_WIDTH + 1) + j;
             ctx.indices[6 * (i * TERRA_WIDTH + j) + 5] = i * (TERRA_WIDTH + 1) + j + 1;
+        }
+	
+	ctx.facesSize = 2 * TERRA_LENGTH * TERRA_WIDTH;
+	ctx.faces = new glm::vec3[ctx.facesSize];
+    for (int i = 0; i < 6 * TERRA_LENGTH * TERRA_WIDTH; i+=3) {
+        int p1 = ctx.indices[i], p2 = ctx.indices[i+1],  p3 = ctx.indices[i+2];
+        glm::vec3 v1(ctx.vertices[12 * p1] - ctx.vertices[12 * p2],
+                     ctx.vertices[12 * p1 + 1] - ctx.vertices[12 * p2 + 1] + ctx.vertices[12 * p1 + 8] - ctx.vertices[12 * p2 + 8],
+                     ctx.vertices[12 * p1 + 2] - ctx.vertices[12 * p2 + 2]);
+        glm::vec3 v2(ctx.vertices[12 * p3] - ctx.vertices[12 * p2],
+                     ctx.vertices[12 * p3 + 1] - ctx.vertices[12 * p2 + 1] + ctx.vertices[12 * p3 + 8] - ctx.vertices[12 * p2 + 8],
+                     ctx.vertices[12 * p3 + 2] - ctx.vertices[12 * p2 + 2]);
+        ctx.faces[i / 3] = glm::normalize(glm::cross(v1, v2));
     }
+	
+	for (int i = 0; i <= TERRA_LENGTH; ++i)
+        for (int j = 0; j <= TERRA_WIDTH; ++j) {
+            int n = (i * (TERRA_WIDTH + 1) + j);
+            glm::vec3 sum(0);
+            bool leftBorder = j == 0, topBorder = i == TERRA_LENGTH, bottomBorder = i == 0;
 
+            if (j != TERRA_WIDTH) {
+                if (i != 0) {
+                    sum += ctx.faces[2 * n - 2 * i - 2 * TERRA_WIDTH] + ctx.faces[2 * n - 2 * i - 2 * TERRA_WIDTH + 1];
+                }
+                if (i != TERRA_LENGTH) {
+                    sum += ctx.faces[2 * n - 2 * i];
+                }
+            }
+            if (j != 0) {
+                if (i != TERRA_LENGTH) {
+                    sum += ctx.faces[2 * n - 2 * i - 1] + ctx.faces[2 * n - 2 * i - 2];
+                }
+                if (i != 0) {
+                    sum += ctx.faces[2 * n - 2 * i - 1 - 2 * TERRA_WIDTH];
+                }
+            }
+
+            sum = glm::normalize(sum);
+
+            ctx.vertices[12 * n + 9] = sum.x;
+            ctx.vertices[12 * n + 10] = sum.y;
+            ctx.vertices[12 * n + 11] = sum.z;
+        }
 }
 
 
@@ -244,7 +289,7 @@ void createCube(Context& ctx)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     int texW, texH, nChannels;
-    unsigned char* texData = stbi_load("C:/Users/abc12/Documents/CG/project/model_viewer/textures/grass.jpg", &texW, &texH, &nChannels, 0);
+    unsigned char* texData = stbi_load((texDir() + "grass.jpg").c_str(), &texW, &texH, &nChannels, 0);
     if (texData)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texW, texH, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
@@ -256,12 +301,20 @@ void createCube(Context& ctx)
 
     glBindBuffer(GL_ARRAY_BUFFER, ctx.terrainVAO);
     glEnableVertexAttribArray(POSITION);
-    glVertexAttribPointer(POSITION, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), nullptr);
+    glVertexAttribPointer(POSITION, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(GLfloat), nullptr);
+    glEnableVertexAttribArray(NORMAL);
+    glVertexAttribPointer(NORMAL, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(9 * sizeof(float)));
     glEnableVertexAttribArray(TEXTURE);
-    glVertexAttribPointer(TEXTURE, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float)));
+    glVertexAttribPointer(TEXTURE, 2, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(HEIGHT);
-    glVertexAttribPointer(HEIGHT, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(8 * sizeof(float)));
+    glVertexAttribPointer(HEIGHT, 1, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float)));
     glBindVertexArray(ctx.defaultVAO); // unbinds the VAO
+}
+
+void kill(Context& ctx){
+	free(ctx.vertices);
+	free(ctx.indices);
+	free(ctx.faces);
 }
 
 void init(Context& ctx)
@@ -285,17 +338,17 @@ void drawTerrain(Context& ctx)
     glm::mat4 view = glm::mat4(1.0f);
     glm::mat4 projection = glm::mat4(1.0f);
 
-    view = glm::lookAt(glm::vec3(-3.5f, 5.5f, -3.5f), glm::vec3(7.0f, 1.0f, 7.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    view = glm::lookAt(glm::vec3(-3.0f, 6.0f, -3.0f), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
     projection = glm::perspective(1.0f, 1.0f, 0.1f, 100.0f);
 
     glm::mat4 mvp = projection * view * model, mv = view * model;
 
     // Light
-    glm::vec3 lightPos = glm::vec3(glm::vec4(0.0, 0.0, 4.0, 1.0));
+    glm::vec3 lightPos = glm::vec3(glm::vec4(-10.0, 10.0, 0.0, 1.0));
     glm::vec3 lightColor = glm::vec3(1.0, 1.0, 1.0);
     glm::vec3 ambColor = glm::vec3(0.01, 0.01, 0.01);
-    glm::vec3 difColor = glm::vec3(1.0, 0.0, 0.0);
+    glm::vec3 difColor = glm::vec3(1.0, 1.0, 1.0);
     glm::vec3 specColor = glm::vec3(0.04, 0.04, 0.04);
     GLfloat specPower = 4;
 
@@ -494,6 +547,8 @@ int main(void)
         ImGui::Render();
         glfwSwapBuffers(ctx.window);
     }
+	
+	kill(ctx);
 
     // Shutdown
     glfwDestroyWindow(ctx.window);
