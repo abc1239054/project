@@ -1,17 +1,6 @@
 // Fragment shader
 #version 150
 
-/*out vec4 frag_color;
-in vec3 v_color;
-in vec2 texCoordinates;
-
-uniform sampler2D textureFile;
-
-void main()
-{
-    frag_color = texture(textureFile, texCoordinates) + vec4(v_color, 1.0);
-}*/
-
 in vec3 v_normal;
 in vec3 v_light;
 in vec3 v_view;
@@ -29,7 +18,7 @@ float specular(vec3 N, vec3 H, float specular_power);
 vec3 linear_to_gamma(vec3 color);
 
 in vec3 v_color;
-in vec2 texCoordinates;
+in vec2 v_texCoordinates;
 
 uniform sampler2D textureFile;
 
@@ -41,7 +30,7 @@ void main()
 			   diffuse_color * u_light_clr * diffuse(v_light, v_normal);// +
 			   //(specular_power + 8.0 / 8.0) * specular_color * u_light_clr * specular(v_normal, H, specular_power);
 	
-	frag_color = texture(textureFile, texCoordinates) * vec4(linear_to_gamma(clr), 1.0);
+	frag_color = texture(textureFile, v_texCoordinates) * vec4(linear_to_gamma(clr), 1.0);
 }
 
 float diffuse(vec3 L, vec3 N)

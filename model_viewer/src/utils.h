@@ -39,6 +39,7 @@ void showProgramInfoLog(GLuint program)
 }
 
 GLuint loadShaderProgram(const std::string &vertexShaderFilename,
+                         const std::string &geometryShaderFilename,
                          const std::string &fragmentShaderFilename)
 {
     // Load and compile vertex shader
@@ -54,6 +55,22 @@ GLuint loadShaderProgram(const std::string &vertexShaderFilename,
         std::cerr << "Vertex shader compilation failed:" << std::endl;
         showShaderInfoLog(vertexShader);
         glDeleteShader(vertexShader);
+        return 0;
+    }
+
+    // Load and compile geometry shader
+    GLuint geometryShader = glCreateShader(GL_GEOMETRY_SHADER);
+    std::string geometryShaderSource = readShaderSource(geometryShaderFilename);
+    const char *geometryShaderSourcePtr = geometryShaderSource.c_str();
+    glShaderSource(geometryShader, 1, &geometryShaderSourcePtr, nullptr);
+
+    glCompileShader(geometryShader);
+    compiled = 0;
+    glGetShaderiv(geometryShader, GL_COMPILE_STATUS, &compiled);
+    if (!compiled) {
+        std::cerr << "Geometry shader compilation failed:" << std::endl;
+        showShaderInfoLog(geometryShader);
+        glDeleteShader(geometryShader);
         return 0;
     }
 
@@ -79,6 +96,7 @@ GLuint loadShaderProgram(const std::string &vertexShaderFilename,
 
     // Attach shaders to the program
     glAttachShader(program, vertexShader);
+    glAttachShader(program, geometryShader);
     glAttachShader(program, fragmentShader);
 
     // Link program
@@ -92,12 +110,14 @@ GLuint loadShaderProgram(const std::string &vertexShaderFilename,
         showProgramInfoLog(program);
         glDeleteProgram(program);
         glDeleteShader(vertexShader);
+        glDeleteShader(geometryShader);
         glDeleteShader(fragmentShader);
         return 0;
     }
 
     // Clean up
     glDetachShader(program, vertexShader);
+    glDetachShader(program, geometryShader);
     glDetachShader(program, fragmentShader);
 
     return program;

@@ -320,6 +320,7 @@ void kill(Context& ctx){
 void init(Context& ctx)
 {
     ctx.program = loadShaderProgram(shaderDir() + "terrain.vert",
+        shaderDir() + "terrain.geo",
         shaderDir() + "terrain.frag");
 
     createRawData(ctx);
@@ -409,8 +410,9 @@ void display(Context& ctx)
 void reloadShaders(Context* ctx)
 {
     glDeleteProgram(ctx->program);
-    ctx->program = loadShaderProgram(shaderDir() + "mesh.vert",
-        shaderDir() + "mesh.frag");
+    ctx->program = loadShaderProgram(shaderDir() + "terrain.vert",
+        shaderDir() + "terrain.geo",
+        shaderDir() + "terrain.frag");
 }
 
 void mouseButtonPressed(Context* ctx, int button, int x, int y)
