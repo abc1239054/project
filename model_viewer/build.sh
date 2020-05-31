@@ -2,7 +2,7 @@
 
 if [ -z "$PROJECT_ROOT" ]
 then
-    echo "ASSIGNMENT3_ROOT is not set"
+    echo "PROJECT_ROOT is not set"
     exit 1
 fi
 
