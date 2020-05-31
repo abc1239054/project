@@ -7,17 +7,17 @@ layout(location = 1) in vec3 a_normal;
 layout(location = 2) in vec2 a_texCoordinates;
 layout(location = 3) in float a_height;
 
-//out vec3 v_normal;
-//out vec3 v_light;
-//out vec3 v_view;
+out vec3 v_normal;
+out vec3 v_light;
+out vec3 v_view;
 
-out varyingData {
+/*out varyingData {
     vec3 normal;
     vec3 light;
     vec3 view;
     vec3 color;
     vec2 texCoordinates;
-}v_data;
+}v_data;*/
 
 
 uniform mat4 u_mvp;
@@ -25,8 +25,8 @@ uniform mat4 u_mv;
 uniform vec3 u_light_pos;
 uniform float seed;
 
-//out vec3 v_color;
-//out vec2 texCoordinates;
+out vec3 v_color;
+out vec2 v_texCoordinates;
 
 // 2D Random
 float random (in vec2 st) {
@@ -59,29 +59,30 @@ float noise (in vec2 st) {
             (d - b) * u.x * u.y;
 }
 
-/*void main()
+void main()
 {
-	v_data.normal = a_normal;
-	v_data.light = normalize(u_light_pos - a_position.xyz);
-	v_data.view = normalize(vec3(0,0,3) - a_position.xyz);
+	v_normal = a_normal;
+	v_light = normalize(u_light_pos - a_position.xyz);
+	v_view = normalize(vec3(0,0,3) - a_position.xyz);
 
     gl_Position = u_mvp * (a_position + vec4(0.0, a_height, 0.0, 0.0));
-	v_data.color = vec3(a_height,0.0,0.0);
-	v_data.texCoordinates = a_texCoordinates;
-}*/
+	v_color = vec3(a_height,0.0,0.0);
+	v_texCoordinates = a_texCoordinates;
+}
 
-void main()
+
+/*void main()
 {
     vec2 st = vec2(a_position.x*1.0, a_position.z*1.0);
     float y = noise(st);
-    vec3 position = vec3(a_position.x, y*2.5, a_position.z);
+    vec3 position = vec3(a_position.x, y*2.0, a_position.z);
 
     v_data.normal = a_normal;
 	v_data.light = normalize(u_light_pos - position.xyz);
 	v_data.view = normalize(vec3(0,0,3) - position.xyz);
 
     gl_Position = u_mvp * vec4(position.xyz, 1.0);
-	v_data.color = vec3(y,0.0,0.0);
+	v_data.color = vec3(y*3, 0, 0);
 	v_data.texCoordinates = a_texCoordinates;
 
-}
+}*/

@@ -189,24 +189,55 @@ void initializeTrackball(Context& ctx)
     ctx.trackball.center = center;
 }
 
+float randomFloat(glm::vec2 st, float seed){
+    return glm::fract(glm::sin(glm::dot(st,
+                        glm::vec2(12.9898f,78.233f))) * seed);
+}
+
+float noise(glm::vec2 st, float seed){
+    glm::vec2 i = glm::floor(st);
+    glm::vec2 f = glm::fract(st);
+
+    // Four corners in 2D of a tile
+    float a = randomFloat(i, seed);
+    float b = randomFloat(i + glm::vec2(1.0f, 0.0f), seed);
+    float c = randomFloat(i + glm::vec2(0.0f, 1.0f), seed);
+    float d = randomFloat(i + glm::vec2(1.0f, 1.0f), seed);
+
+    // Smooth Interpolation
+    // Cubic Hermine Curve.  Same as SmoothStep()
+    glm::vec2 u = f*f*(3.0f-2.0f*f);
+    // u = smoothstep(0.,1.,f);
+
+    // Mix 4 coorners percentages
+    return glm::mix(a, b, u.x) +
+            (c - a)* u.y * (1.0f - u.x) +
+            (d - b) * u.x * u.y;
+}
+
 void createRawData(Context &ctx){
     ctx.verticesSize = 12 * (TERRA_LENGTH + 1) * (TERRA_WIDTH + 1);
     ctx.vertices =  new GLfloat[ctx.verticesSize];
     for (int i = 0; i <= TERRA_LENGTH; ++i)
         for (int j = 0; j <= TERRA_WIDTH; ++j) {
             int n = 12 * (i * (TERRA_WIDTH + 1) + j);
-            ctx.vertices[n] = 0.0 + TERRA_SCALE * j;
-            ctx.vertices[n + 1] = 0.0;
-            ctx.vertices[n + 2] = 0.0 + TERRA_SCALE * i;
-
-            ctx.vertices[n + 3] = 1.0;
-            ctx.vertices[n + 4] = 1.0;
-            ctx.vertices[n + 5] = 1.0;
+            ctx.vertices[n] = 0.0f + TERRA_SCALE * j;
+            ctx.vertices[n + 1] = 0.0f;
+            ctx.vertices[n + 2] = 0.0f + TERRA_SCALE * i;
+            
+            ctx.vertices[n + 3] = 1.0f;
+            ctx.vertices[n + 4] = 1.0f;
+            ctx.vertices[n + 5] = 1.0f;
 
             ctx.vertices[n + 6] = i % 2;
             ctx.vertices[n + 7] = j % 2;
 
-            ctx.vertices[n + 8] = sin(j * 0.2) + cos(i * 0.3) + (0.2 - (-0.2)) * rand() / (RAND_MAX + 1.0) - 0.2;
+            //ctx.vertices[n + 8] = sin(j * 0.2) + cos(i * 0.3) + (0.2 - (-0.2)) * rand() / (RAND_MAX + 1.0) - 0.2;
+            ctx.vertices[n + 8] = noise(glm::vec2(ctx.vertices[n], ctx.vertices[n + 2])*0.5f, ctx.seed) * 5.0f + 
+                                (0.15 - (-0.15)) * rand() / (RAND_MAX + 1.0) - 0.15;
+
+            
+        
         }
 
     ctx.indicesSize = 6 * TERRA_LENGTH * TERRA_WIDTH;
@@ -320,13 +351,14 @@ void kill(Context& ctx){
 void init(Context& ctx)
 {
     ctx.program = loadShaderProgram(shaderDir() + "terrain.vert",
-        shaderDir() + "terrain.geo",
         shaderDir() + "terrain.frag");
 
+    ctx.seed=(99999 - 10000) * rand() / (RAND_MAX + 1.0) + 10000;
+    
     createRawData(ctx);
     createCube(ctx);
 
-    ctx.seed=(99999 - 10000) * rand() / (RAND_MAX + 1.0) + 10000;
+    
 }
 
 // MODIFY THIS FUNCTION
@@ -411,7 +443,6 @@ void reloadShaders(Context* ctx)
 {
     glDeleteProgram(ctx->program);
     ctx->program = loadShaderProgram(shaderDir() + "terrain.vert",
-        shaderDir() + "terrain.geo",
         shaderDir() + "terrain.frag");
 }
 
@@ -510,8 +541,8 @@ int main(void)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-    ctx.width = 500;
-    ctx.height = 500;
+    ctx.width = 1280;
+    ctx.height = 720;
     ctx.aspect = float(ctx.width) / float(ctx.height);
     ctx.window = glfwCreateWindow(ctx.width, ctx.height, "Model viewer", nullptr, nullptr);
     glfwMakeContextCurrent(ctx.window);
