@@ -66,7 +66,7 @@ void main()
 	v_view = normalize(vec3(0,0,3) - a_position.xyz);
 
     gl_Position = u_mvp * (a_position + vec4(0.0, a_height, 0.0, 0.0));
-	v_color = vec3(a_height,0.0,0.0);
+	v_color = vec3(a_height, 0.2, 0.0);
 	v_texCoordinates = a_texCoordinates;
 }
 

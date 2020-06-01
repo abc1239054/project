@@ -27,7 +27,7 @@ void main()
     vec3 H = normalize(v_view + v_light);
     
 	vec3 clr = ambient_color +
-			   diffuse_color * u_light_clr * diffuse(v_light, v_normal);// +
+			   diffuse_color * u_light_clr * diffuse(v_light, v_normal) + v_color; // +
 			   //(specular_power + 8.0 / 8.0) * specular_color * u_light_clr * specular(v_normal, H, specular_power);
 	
 	frag_color = texture(textureFile, v_texCoordinates) * vec4(linear_to_gamma(clr), 1.0);
