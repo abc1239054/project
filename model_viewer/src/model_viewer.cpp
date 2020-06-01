@@ -62,18 +62,18 @@ struct Context {
     GLFWwindow* window;
     GLuint program;
     Trackball trackball;
-    GLuint terrainTexture;
     GLuint heightVBO;
     GLuint terrainVAO;
     GLuint terrainEBO;
     GLuint terrainVBO;
-    GLuint defaultVAO;
+    GLuint defaultVAO=0;
     GLfloat *vertices;
     GLuint *indices;
     glm::vec3* faces;
     int verticesSize = 0;
     int indicesSize = 0;
     int facesSize = 0;
+    GLuint terrainTexture;
     GLuint cubemap;
     float elapsed_time;
     float seed;
@@ -215,6 +215,30 @@ float noise(glm::vec2 st, float seed){
             (d - b) * u.x * u.y;
 }
 
+void setHeightMap(Context& ctx) {
+    int texW, texH, nChannels, incW, incH;
+    // Heightmap loading
+    unsigned char* mapData = stbi_load((texDir() + "map.jpg").c_str(), &texW, &texH, &nChannels, STBI_rgb_alpha);
+    
+    incW = texW / (TERRA_WIDTH + 1);
+    incH = texH / (TERRA_LENGTH + 1);
+    if (!incH || !incW)
+        std::cout << "Error: height map does not fit the terrain";
+    else if (mapData)
+    {
+        for (int i = 0; i <= TERRA_LENGTH; ++i) {
+            for (int j = 0; j <= TERRA_WIDTH; ++j) {
+                int n = i * (TERRA_WIDTH + 1) + j;
+                ctx.vertices[12 * n + 8] = mapData[(i * texW * incH + j * incW) * nChannels] / 255.0;
+            }
+        }
+    }
+    else
+        std::cout << "Error: height map load problem\n";
+    
+    stbi_image_free(mapData);
+}
+
 void createRawData(Context &ctx){
     ctx.verticesSize = 12 * (TERRA_LENGTH + 1) * (TERRA_WIDTH + 1);
     ctx.vertices =  new GLfloat[ctx.verticesSize];
@@ -239,6 +263,8 @@ void createRawData(Context &ctx){
             
         
         }
+    
+    //setHeightMap(ctx);
 
     ctx.indicesSize = 6 * TERRA_LENGTH * TERRA_WIDTH;
     ctx.indices = new GLuint[ctx.indicesSize];
@@ -297,19 +323,88 @@ void createRawData(Context &ctx){
         }
 }
 
+void createCube(Context& ctxSky)
+{
+    // MODIFY THIS PART: Define the six faces (front, back, left,
+    // right, top, and bottom) of the cube. Each face should be
+    // constructed from two triangles, and each triangle should be
+    // constructed from three vertices. That is, you should define 36
+    // vertices that together make up 12 triangles. One triangle is
+    // given; you have to define the rest!
+    const GLfloat vertices[] = {
+        -8.0,  8.0, -8.0,
+        -8.0, -8.0, -8.0,
+         8.0, -8.0, -8.0,
+         8.0, -8.0, -8.0,
+         8.0,  8.0, -8.0,
+        -8.0,  8.0, -8.0,
 
-void createCube(Context& ctx)
+        -8.0, -8.0,  8.0,
+        -8.0, -8.0, -8.0,
+        -8.0,  8.0, -8.0,
+        -8.0,  8.0, -8.0,
+        -8.0,  8.0,  8.0,
+        -8.0, -8.0,  8.0,
+
+         8.0, -8.0, -8.0,
+         8.0, -8.0,  8.0,
+         8.0,  8.0,  8.0,
+         8.0,  8.0,  8.0,
+         8.0,  8.0, -8.0,
+         8.0, -8.0, -8.0,
+
+        -8.0, -8.0,  8.0,
+        -8.0,  8.0,  8.0,
+         8.0,  8.0,  8.0,
+         8.0,  8.0,  8.0,
+         8.0, -8.0,  8.0,
+        -8.0, -8.0,  8.0,
+
+        -8.0,  8.0, -8.0,
+         8.0,  8.0, -8.0,
+         8.0,  8.0,  8.0,
+         8.0,  8.0,  8.0,
+        -8.0,  8.0,  8.0,
+        -8.0,  8.0, -8.0,
+
+        -8.0, -8.0, -8.0,
+        -8.0, -8.0,  8.0,
+         8.0, -8.0, -8.0,
+         8.0, -8.0, -8.0,
+        -8.0, -8.0,  8.0,
+         8.0, -8.0,  8.0
+    };
+
+    // Generates and populates a vertex buffer object (VBO) for the
+    // vertices (DO NOT CHANGE THIS)
+    glGenBuffers(1, &ctxSky.terrainVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, ctxSky.terrainVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // Creates a vertex array object (VAO) for drawing the cube
+    // (DO NOT CHANGE THIS)
+    glGenVertexArrays(1, &ctxSky.terrainVAO);
+    glBindVertexArray(ctxSky.terrainVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, ctxSky.terrainVBO);
+    glEnableVertexAttribArray(POSITION);
+    glVertexAttribPointer(POSITION, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glBindVertexArray(ctxSky.defaultVAO); // unbinds the VAO
+}
+
+void createTerrain(Context& ctx)
 {
     unsigned int EBO;
     glGenBuffers(1, &ctx.terrainEBO);
     glGenBuffers(1, &ctx.terrainVBO);
     glGenVertexArrays(1, &ctx.terrainVAO);
+
     
     glBindVertexArray(ctx.terrainVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, ctx.terrainVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, ctx.terrainVBO);    
     glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * ctx.verticesSize, ctx.vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ctx.terrainEBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * ctx.verticesSize , ctx.indices, GL_STATIC_DRAW);
+
 
     glGenTextures(1, &ctx.terrainTexture);
     glBindTexture(GL_TEXTURE_2D, ctx.terrainTexture);
@@ -320,7 +415,7 @@ void createCube(Context& ctx)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     int texW, texH, nChannels;
-    unsigned char* texData = stbi_load((texDir() + "grass.jpg").c_str(), &texW, &texH, &nChannels, 0);
+    unsigned char* texData = stbi_load((texDir() + "grass.jpg").c_str(), &texW, &texH, &nChannels, 3);
     if (texData)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texW, texH, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
@@ -346,36 +441,46 @@ void kill(Context& ctx){
 	free(ctx.vertices);
 	free(ctx.indices);
 	free(ctx.faces);
+
 }
 
-void init(Context& ctx)
+void init(Context& ctx, Context& ctxSky)
 {
     ctx.program = loadShaderProgram(shaderDir() + "terrain.vert",
         shaderDir() + "terrain.frag");
+    
+    ctxSky.program = loadShaderProgram(shaderDir() + "skybox.vert",
+                                       shaderDir() + "skybox.frag");
+    
+    ctxSky.cubemap = loadCubemap(cubemapDir() + "/reference/");
 
     ctx.seed=(99999 - 10000) * rand() / (RAND_MAX + 1.0) + 10000;
-    
+
     createRawData(ctx);
-    createCube(ctx);
+    createTerrain(ctx);
+    createCube(ctxSky);
 
     
 }
 
 // MODIFY THIS FUNCTION
-void drawTerrain(Context& ctx)
+void drawTerrain(Context& ctx, Context& ctxSky)
 {
-    glUseProgram(ctx.program);
+    // Vectors and matrices for the skybox shaders
+    glm::vec3 viewPos = glm::vec3(0.0f, 0.0f, 3.0f);
+    glm::mat4 t_m = glm::translate(trackballGetRotationMatrix(ctx.trackball), glm::vec3(0.0f, 7.0f, 0.0f));
 
     // Define the model, view, and projection matrices here
     glm::mat4 model = trackballGetRotationMatrix(ctx.trackball);
     glm::mat4 view = glm::mat4(1.0f);
     glm::mat4 projection = glm::mat4(1.0f);
 
-    view = glm::lookAt(glm::vec3(-3.0f, 6.0f, -3.0f), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    view = glm::lookAt(glm::vec3(-3.0f, 5.0f, -3.0f), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
     projection = glm::perspective(1.0f, 1.0f, 0.1f, 100.0f);
 
     glm::mat4 mvp = projection * view * model, mv = view * model;
+    glm::mat4 t_mvp = projection * view * t_m;
 
     // Light
     glm::vec3 lightPos = glm::vec3(glm::vec4(-10.0, 10.0, 0.0, 1.0));
@@ -385,18 +490,34 @@ void drawTerrain(Context& ctx)
     glm::vec3 specColor = glm::vec3(0.04, 0.04, 0.04);
     GLfloat specPower = 4;
 
+    
+
+    // draw the skybox
+    glDepthMask(GL_FALSE);
+    glUseProgram(ctxSky.program);
+    glUniformMatrix4fv(glGetUniformLocation(ctxSky.program, "u_mvp"),
+        1, GL_FALSE, &t_mvp[0][0]);
+    glUniform3fv(glGetUniformLocation(ctxSky.program, "u_view_pos"), 1, &viewPos[0]);
+    glBindVertexArray(ctxSky.terrainVAO);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, ctxSky.cubemap);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glDepthMask(GL_TRUE);
+
+
+    
     // Concatenate the model, view, and projection matrices to a
     // ModelViewProjection (MVP) matrix and pass it as a uniform
     // variable to the shader program.
     //
     // Hint: you pass GLM matrices to shader programs like this:
-    glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_mvp"),
-        1, GL_FALSE, &mvp[0][0]);
 
+    
+    
     // Bind textures
     // ...
+    glUseProgram(ctx.program);
 
-    // Pass uniforms
+    // Pass uniforms to terrain shaders
     glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_mv"), 1, GL_FALSE, &mv[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_mvp"), 1, GL_FALSE, &mvp[0][0]);
     glUniform1f(glGetUniformLocation(ctx.program, "u_time"), ctx.elapsed_time);
@@ -408,9 +529,8 @@ void drawTerrain(Context& ctx)
     glUniform3fv(glGetUniformLocation(ctx.program, "specular_color"), 1, &specColor[0]);
     glUniform1f(glGetUniformLocation(ctx.program, "specular_power"), specPower);
 
-    glUniform1f(glGetUniformLocation(ctx.program, "seed"), ctx.seed);
-    // ...
-
+    //glUniform1f(glGetUniformLocation(ctx.program, "seed"), ctx.seed);
+    
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, ctx.terrainTexture);
     glBindVertexArray(ctx.terrainVAO);
@@ -430,13 +550,13 @@ void display(Context& ctx)
     drawMesh(ctx, ctx.program, ctx.terrainVAO);
 }*/
 
-void display(Context& ctx)
+void display(Context& ctx, Context& ctxSky)
 {
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glEnable(GL_DEPTH_TEST); // ensures that polygons overlap correctly
-    drawTerrain(ctx);
+    drawTerrain(ctx, ctxSky);
 }
 
 void reloadShaders(Context* ctx)
@@ -531,7 +651,7 @@ void resizeCallback(GLFWwindow* window, int width, int height)
 
 int main(void)
 {
-    Context ctx;
+    Context ctx, ctxSky;
     srand(time(NULL));
 
     // Create a GLFW window
@@ -569,14 +689,14 @@ int main(void)
     glGenVertexArrays(1, &ctx.defaultVAO);
     glBindVertexArray(ctx.defaultVAO);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-    init(ctx);
+    init(ctx, ctxSky);
 
     // Start rendering loop
     while (!glfwWindowShouldClose(ctx.window)) {
         glfwPollEvents();
         ctx.elapsed_time = glfwGetTime();
         ImGui_ImplGlfwGL3_NewFrame();
-        display(ctx);
+        display(ctx, ctxSky);
         ImGui::Render();
         glfwSwapBuffers(ctx.window);
     }
