@@ -332,47 +332,47 @@ void createCube(Context& ctxSky)
     // vertices that together make up 12 triangles. One triangle is
     // given; you have to define the rest!
     const GLfloat vertices[] = {
-        -8.0,  8.0, -8.0,
-        -8.0, -8.0, -8.0,
-         8.0, -8.0, -8.0,
-         8.0, -8.0, -8.0,
-         8.0,  8.0, -8.0,
-        -8.0,  8.0, -8.0,
+        -12.0,  12.0, -12.0,
+        -12.0, -12.0, -12.0,
+         12.0, -12.0, -12.0,
+         12.0, -12.0, -12.0,
+         12.0,  12.0, -12.0,
+        -12.0,  12.0, -12.0,
 
-        -8.0, -8.0,  8.0,
-        -8.0, -8.0, -8.0,
-        -8.0,  8.0, -8.0,
-        -8.0,  8.0, -8.0,
-        -8.0,  8.0,  8.0,
-        -8.0, -8.0,  8.0,
+        -12.0, -12.0,  12.0,
+        -12.0, -12.0, -12.0,
+        -12.0,  12.0, -12.0,
+        -12.0,  12.0, -12.0,
+        -12.0,  12.0,  12.0,
+        -12.0, -12.0,  12.0,
 
-         8.0, -8.0, -8.0,
-         8.0, -8.0,  8.0,
-         8.0,  8.0,  8.0,
-         8.0,  8.0,  8.0,
-         8.0,  8.0, -8.0,
-         8.0, -8.0, -8.0,
+         12.0, -12.0, -12.0,
+         12.0, -12.0,  12.0,
+         12.0,  12.0,  12.0,
+         12.0,  12.0,  12.0,
+         12.0,  12.0, -12.0,
+         12.0, -12.0, -12.0,
 
-        -8.0, -8.0,  8.0,
-        -8.0,  8.0,  8.0,
-         8.0,  8.0,  8.0,
-         8.0,  8.0,  8.0,
-         8.0, -8.0,  8.0,
-        -8.0, -8.0,  8.0,
+        -12.0, -12.0,  12.0,
+        -12.0,  12.0,  12.0,
+         12.0,  12.0,  12.0,
+         12.0,  12.0,  12.0,
+         12.0, -12.0,  12.0,
+        -12.0, -12.0,  12.0,
 
-        -8.0,  8.0, -8.0,
-         8.0,  8.0, -8.0,
-         8.0,  8.0,  8.0,
-         8.0,  8.0,  8.0,
-        -8.0,  8.0,  8.0,
-        -8.0,  8.0, -8.0,
+        -12.0,  12.0, -12.0,
+         12.0,  12.0, -12.0,
+         12.0,  12.0,  12.0,
+         12.0,  12.0,  12.0,
+        -12.0,  12.0,  12.0,
+        -12.0,  12.0, -12.0,
 
-        -8.0, -8.0, -8.0,
-        -8.0, -8.0,  8.0,
-         8.0, -8.0, -8.0,
-         8.0, -8.0, -8.0,
-        -8.0, -8.0,  8.0,
-         8.0, -8.0,  8.0
+        -12.0, -12.0, -12.0,
+        -12.0, -12.0,  12.0,
+         12.0, -12.0, -12.0,
+         12.0, -12.0, -12.0,
+        -12.0, -12.0,  12.0,
+         12.0, -12.0,  12.0
     };
 
     // Generates and populates a vertex buffer object (VBO) for the
@@ -466,6 +466,7 @@ void init(Context& ctx, Context& ctxSky)
 // MODIFY THIS FUNCTION
 void drawTerrain(Context& ctx, Context& ctxSky)
 {
+
     // Vectors and matrices for the skybox shaders
     glm::vec3 viewPos = glm::vec3(0.0f, 0.0f, 3.0f);
     glm::mat4 t_m = glm::translate(trackballGetRotationMatrix(ctx.trackball), glm::vec3(0.0f, 7.0f, 0.0f));
@@ -475,7 +476,14 @@ void drawTerrain(Context& ctx, Context& ctxSky)
     glm::mat4 view = glm::mat4(1.0f);
     glm::mat4 projection = glm::mat4(1.0f);
 
-    view = glm::lookAt(glm::vec3(-3.0f, 5.0f, -3.0f), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    //For gererating animation
+    glm::vec3 camPos = glm::vec3(8.0f + 6.0f * cos(ctx.elapsed_time*0.3f), 
+                5.0f + sin(ctx.elapsed_time*0.3f), 
+                8.0f + 6.0f * sin(ctx.elapsed_time*0.3f) );
+    glm::vec3 target = glm::vec3(8.0f + 6.0f * cos(ctx.elapsed_time*0.3f + 0.01f), 
+                4.98f + sin(ctx.elapsed_time*0.3f + 0.01f), 
+                8.0f + 6.0f * sin(ctx.elapsed_time*0.3f + 0.01f) );
+    view = glm::lookAt(camPos, target, glm::vec3(0.0f, 1.0f, 0.0f));
 
     projection = glm::perspective(1.0f, 1.0f, 0.1f, 100.0f);
 
