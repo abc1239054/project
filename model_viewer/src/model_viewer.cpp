@@ -62,11 +62,15 @@ struct Context {
     float aspect;
     GLFWwindow* window;
     GLuint program;
+    GLuint programFog;
     Trackball trackball;
     GLuint heightVBO;
     GLuint terrainVAO;
     GLuint terrainEBO;
     GLuint terrainVBO;
+    GLuint fogVAO;
+    GLuint fogVBO;
+    GLuint fogTexture;
     GLuint defaultVAO=0;
     GLfloat *vertices;
     GLuint *indices;
@@ -79,6 +83,7 @@ struct Context {
     float elapsed_time;
     float seed;
     bool enableAnima = false;
+    bool enableFog = true;
     glm::vec3 camPos;
     glm::vec3 target;
     float widthOffset = (TERRA_WIDTH * TERRA_SCALE) / 2.0f;
@@ -224,7 +229,7 @@ float noise(glm::vec2 st, float seed){
 void setHeightMap(Context& ctx) {
     int texW, texH, nChannels, incW, incH;
     // Heightmap loading
-    unsigned char* mapData = stbi_load((texDir() + "map.bmp").c_str(), &texW, &texH, &nChannels, 3);
+    unsigned char* mapData = stbi_load((texDir() + "map.jpg").c_str(), &texW, &texH, &nChannels, 3);
 
     incW = texW / (TERRA_WIDTH + 1);
     incH = texH / (TERRA_LENGTH + 1);
@@ -441,6 +446,52 @@ void createTerrain(Context& ctx)
     glBindVertexArray(ctx.defaultVAO); // unbinds the VAO
 }
 
+void createFog(Context& ctx){
+    GLfloat vertices[] = {
+        -50.0, 6.0, -50.0, 0.0, 0.0,
+        -50.0, 6.0,  50.0, 0.0, 1.0,
+         50.0, 6.0, -50.0, 1.0, 0.0,
+         50.0, 6.0, -50.0, 1.0, 0.0,
+        -50.0, 6.0,  50.0, 0.0, 1.0,
+         50.0, 6.0,  50.0, 1.0, 1.0
+    };
+
+    
+    glGenBuffers(1, &ctx.fogVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, ctx.fogVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glGenTextures(1, &ctx.fogTexture);
+    glBindTexture(GL_TEXTURE_2D, ctx.fogTexture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+
+    int texW, texH, nChannels;
+    unsigned char* texData = stbi_load((texDir() + "fog.png").c_str(), &texW, &texH, &nChannels, STBI_rgb_alpha);
+    if (texData)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, texData);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+        std::cout << "Error: texture load problem\n";
+    stbi_image_free(texData);
+
+    glGenVertexArrays(1, &ctx.fogVAO);
+    glBindVertexArray(ctx.fogVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, ctx.fogVBO);
+    glEnableVertexAttribArray(POSITION);
+    glVertexAttribPointer(POSITION, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), nullptr);
+    glEnableVertexAttribArray(TEXTURE);
+    glVertexAttribPointer(TEXTURE, 2, GL_FLOAT, GL_FALSE, 
+            5 * sizeof(float), (void*)(3*sizeof(float)));
+    glBindVertexArray(ctx.defaultVAO);
+}
+
 void kill(Context& ctx){
 	free(ctx.vertices);
 	free(ctx.indices);
@@ -456,6 +507,9 @@ void init(Context& ctx, Context& ctxSky)
     ctxSky.program = loadShaderProgram(shaderDir() + "skybox.vert",
                                        shaderDir() + "skybox.frag");
     
+    ctx.programFog = loadShaderProgram(shaderDir() + "fog.vert",
+                                       shaderDir() + "fog.frag");
+    
     ctxSky.cubemap = loadCubemap(cubemapDir() + "/Skybox/");
 
     ctx.seed=(99999 - 10000) * rand() / (RAND_MAX + 1.0) + 10000;
@@ -463,6 +517,7 @@ void init(Context& ctx, Context& ctxSky)
     createRawData(ctx);
     createTerrain(ctx);
     createCube(ctxSky);
+    createFog(ctx);
 
     ctx.elapsed_time = glfwGetTime();
 
@@ -493,12 +548,14 @@ void drawTerrain(Context& ctx, Context& ctxSky)
     }
 
     // Define the model, view, and projection matrices here
-    glm::mat4 model = glm::mat4(1.0);
+    glm::mat4 model = trackballGetRotationMatrix(ctx.trackball);
+    glm::mat4 model_fog = glm::mat4(1.0f);
     glm::mat4 view = glm::lookAt(ctx.camPos, ctx.target, glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 projection = glm::perspective(1.0f, 1.0f, 0.1f, 100.0f);
 
     glm::mat4 mvp = projection * view * model, mv = view * model;
     glm::mat4 t_mvp = projection * view * t_m;
+    glm::mat4 mvp_fog = projection * view * model_fog;
 
     // Light
     glm::vec3 lightPos = glm::vec3(glm::vec4(-10.0, 10.0, 0.0, 1.0));
@@ -514,13 +571,30 @@ void drawTerrain(Context& ctx, Context& ctxSky)
     glDepthMask(GL_FALSE);
     glUseProgram(ctxSky.program);
     glUniformMatrix4fv(glGetUniformLocation(ctxSky.program, "u_mvp"),
-        1, GL_FALSE, &t_mvp[0][0]);
+        1, GL_FALSE, &mvp_fog[0][0]);
     glUniform3fv(glGetUniformLocation(ctxSky.program, "u_view_pos"), 1, &viewPos[0]);
     glBindVertexArray(ctxSky.terrainVAO);
     glBindTexture(GL_TEXTURE_CUBE_MAP, ctxSky.cubemap);
     glDrawArrays(GL_TRIANGLES, 0, 36);
     glDepthMask(GL_TRUE);
 
+    if(ctx.enableFog)
+    {
+        glUseProgram(ctx.programFog);
+
+        
+        glUniformMatrix4fv(glGetUniformLocation(ctx.programFog, "u_mvp"),
+        1, GL_FALSE, &mvp[0][0]);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, ctx.fogTexture);
+        glUniform1i(glGetUniformLocation(ctx.programFog, "u_texture2"), 2);
+
+        glBindVertexArray(ctx.fogVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(ctx.defaultVAO);
+        glUseProgram(0);
+    }
+    
 
     
     // Concatenate the model, view, and projection matrices to a
