@@ -224,8 +224,8 @@ float noise(glm::vec2 st, float seed){
 void setHeightMap(Context& ctx) {
     int texW, texH, nChannels, incW, incH;
     // Heightmap loading
-    unsigned char* mapData = stbi_load((texDir() + "map.jpg").c_str(), &texW, &texH, &nChannels, STBI_rgb_alpha);
-    
+    unsigned char* mapData = stbi_load((texDir() + "map.bmp").c_str(), &texW, &texH, &nChannels, 3);
+
     incW = texW / (TERRA_WIDTH + 1);
     incH = texH / (TERRA_LENGTH + 1);
     if (!incH || !incW)
@@ -235,7 +235,7 @@ void setHeightMap(Context& ctx) {
         for (int i = 0; i <= TERRA_LENGTH; ++i) {
             for (int j = 0; j <= TERRA_WIDTH; ++j) {
                 int n = i * (TERRA_WIDTH + 1) + j;
-                ctx.vertices[12 * n + 8] = mapData[(i * texW * incH + j * incW) * nChannels] / 255.0;
+                ctx.vertices[12 * n + 8] = 2 * mapData[(i * texW * incH + j * incW) * nChannels] / 255.0;
             }
         }
     }
@@ -251,9 +251,9 @@ void createRawData(Context &ctx){
     for (int i = 0; i <= TERRA_LENGTH; ++i)
         for (int j = 0; j <= TERRA_WIDTH; ++j) {
             int n = 12 * (i * (TERRA_WIDTH + 1) + j);
-            ctx.vertices[n] = 0.0f + TERRA_SCALE * j;
+            ctx.vertices[n] = - TERRA_SCALE * TERRA_WIDTH / 2 + TERRA_SCALE * j;
             ctx.vertices[n + 1] = 0.0f;
-            ctx.vertices[n + 2] = 0.0f + TERRA_SCALE * i;
+            ctx.vertices[n + 2] = - TERRA_SCALE * TERRA_LENGTH / 2 + TERRA_SCALE * i;
             
             ctx.vertices[n + 3] = 1.0f;
             ctx.vertices[n + 4] = 1.0f;
@@ -265,12 +265,9 @@ void createRawData(Context &ctx){
             //ctx.vertices[n + 8] = sin(j * 0.2) + cos(i * 0.3) + (0.2 - (-0.2)) * rand() / (RAND_MAX + 1.0) - 0.2;
             ctx.vertices[n + 8] = noise(glm::vec2(ctx.vertices[n], ctx.vertices[n + 2])*0.5f, ctx.seed) * 5.0f + 
                                 (0.15 - (-0.15)) * rand() / (RAND_MAX + 1.0) - 0.15;
-
-            
-        
         }
     
-    //setHeightMap(ctx);
+    setHeightMap(ctx);
 
     ctx.indicesSize = 6 * TERRA_LENGTH * TERRA_WIDTH;
     ctx.indices = new GLuint[ctx.indicesSize];
@@ -339,47 +336,47 @@ void createCube(Context& ctxSky)
     // given; you have to define the rest!
 
     const GLfloat vertices[] = {
-        -12.0,  12.0, -12.0,
-        -12.0, -12.0, -12.0,
-         12.0, -12.0, -12.0,
-         12.0, -12.0, -12.0,
-         12.0,  12.0, -12.0,
-        -12.0,  12.0, -12.0,
+        -50.0,  50.0, -50.0,
+        -50.0, -50.0, -50.0,
+         50.0, -50.0, -50.0,
+         50.0, -50.0, -50.0,
+         50.0,  50.0, -50.0,
+        -50.0,  50.0, -50.0,
 
-        -12.0, -12.0,  12.0,
-        -12.0, -12.0, -12.0,
-        -12.0,  12.0, -12.0,
-        -12.0,  12.0, -12.0,
-        -12.0,  12.0,  12.0,
-        -12.0, -12.0,  12.0,
+        -50.0, -50.0,  50.0,
+        -50.0, -50.0, -50.0,
+        -50.0,  50.0, -50.0,
+        -50.0,  50.0, -50.0,
+        -50.0,  50.0,  50.0,
+        -50.0, -50.0,  50.0,
 
-         12.0, -12.0, -12.0,
-         12.0, -12.0,  12.0,
-         12.0,  12.0,  12.0,
-         12.0,  12.0,  12.0,
-         12.0,  12.0, -12.0,
-         12.0, -12.0, -12.0,
+         50.0, -50.0, -50.0,
+         50.0, -50.0,  50.0,
+         50.0,  50.0,  50.0,
+         50.0,  50.0,  50.0,
+         50.0,  50.0, -50.0,
+         50.0, -50.0, -50.0,
 
-        -12.0, -12.0,  12.0,
-        -12.0,  12.0,  12.0,
-         12.0,  12.0,  12.0,
-         12.0,  12.0,  12.0,
-         12.0, -12.0,  12.0,
-        -12.0, -12.0,  12.0,
+        -50.0, -50.0,  50.0,
+        -50.0,  50.0,  50.0,
+         50.0,  50.0,  50.0,
+         50.0,  50.0,  50.0,
+         50.0, -50.0,  50.0,
+        -50.0, -50.0,  50.0,
 
-        -12.0,  12.0, -12.0,
-         12.0,  12.0, -12.0,
-         12.0,  12.0,  12.0,
-         12.0,  12.0,  12.0,
-        -12.0,  12.0,  12.0,
-        -12.0,  12.0, -12.0,
+        -50.0,  50.0, -50.0,
+         50.0,  50.0, -50.0,
+         50.0,  50.0,  50.0,
+         50.0,  50.0,  50.0,
+        -50.0,  50.0,  50.0,
+        -50.0,  50.0, -50.0,
 
-        -12.0, -12.0, -12.0,
-        -12.0, -12.0,  12.0,
-         12.0, -12.0, -12.0,
-         12.0, -12.0, -12.0,
-        -12.0, -12.0,  12.0,
-         12.0, -12.0,  12.0
+        -50.0, -50.0, -50.0,
+        -50.0, -50.0,  50.0,
+         50.0, -50.0, -50.0,
+         50.0, -50.0, -50.0,
+        -50.0, -50.0,  50.0,
+         50.0, -50.0,  120.0
     };
 
     // Generates and populates a vertex buffer object (VBO) for the
@@ -459,7 +456,7 @@ void init(Context& ctx, Context& ctxSky)
     ctxSky.program = loadShaderProgram(shaderDir() + "skybox.vert",
                                        shaderDir() + "skybox.frag");
     
-    ctxSky.cubemap = loadCubemap(cubemapDir() + "/reference/");
+    ctxSky.cubemap = loadCubemap(cubemapDir() + "/Skybox/");
 
     ctx.seed=(99999 - 10000) * rand() / (RAND_MAX + 1.0) + 10000;
 
@@ -483,26 +480,22 @@ void drawTerrain(Context& ctx, Context& ctxSky)
     glm::vec3 viewPos = glm::vec3(0.0f, 0.0f, 3.0f);
     glm::mat4 t_m = glm::translate(trackballGetRotationMatrix(ctx.trackball), glm::vec3(0.0f, 7.0f, 0.0f));
 
-    // Define the model, view, and projection matrices here
-    glm::mat4 model = glm::translate(trackballGetRotationMatrix(ctx.trackball), glm::vec3(-ctx.widthOffset, 0.0f, -ctx.lengthOffset));
-    glm::mat4 view = glm::mat4(1.0f);
-    glm::mat4 projection = glm::mat4(1.0f);
-
     //For camera animation
-    if(ctx.enableAnima)
+    if (ctx.enableAnima)
     {
-        ctx.camPos.x = 8.0f * cos(ctx.elapsed_time*0.3f);
-        ctx.camPos.y = 7.0f + sin(ctx.elapsed_time*0.3f);
-        ctx.camPos.z = 8.0f * sin(ctx.elapsed_time*0.3f);
+        ctx.camPos.x = 8.0f * cos(ctx.elapsed_time * 0.3f);
+        ctx.camPos.y = 3.0f;
+        ctx.camPos.z = 8.0f * sin(ctx.elapsed_time * 0.3f);
 
-        ctx.target.x = 8.0f * cos(ctx.elapsed_time*0.3f + 0.01f);
-        ctx.target.y = 6.98f + sin(ctx.elapsed_time*0.3f + 0.01f);
-        ctx.target.z = 8.0f * sin(ctx.elapsed_time*0.3f + 0.01f);
+        ctx.target.x = 8.0f * cos(ctx.elapsed_time * 0.3f + 0.2f);
+        ctx.target.y = 2.5f;
+        ctx.target.z = 8.0f * sin(ctx.elapsed_time * 0.3f + 0.2f);
     }
-    
-    view = glm::lookAt(ctx.camPos, ctx.target, glm::vec3(0.0f, 1.0f, 0.0f));
 
-    projection = glm::perspective(1.0f, 1.0f, 0.1f, 100.0f);
+    // Define the model, view, and projection matrices here
+    glm::mat4 model = glm::mat4(1.0);
+    glm::mat4 view = glm::lookAt(ctx.camPos, ctx.target, glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 projection = glm::perspective(1.0f, 1.0f, 0.1f, 100.0f);
 
     glm::mat4 mvp = projection * view * model, mv = view * model;
     glm::mat4 t_mvp = projection * view * t_m;
