@@ -26,7 +26,7 @@
 #define TERRA_LENGTH 128
 #define TERRA_SCALE 0.2f
 
-
+float lastTime, timeDelta, cameraSpeed;
 
 
 // The attribute locations we will use in the vertex shader
@@ -62,25 +62,25 @@ struct Context {
     float aspect;
     GLFWwindow* window;
     GLuint program;
-    GLuint programFog;
+    GLuint programClouds;
     Trackball trackball;
     GLuint heightVBO;
     GLuint terrainVAO;
     GLuint terrainEBO;
     GLuint terrainVBO;
-    GLuint fogVAO;
-    GLuint fogVBO;
-    GLuint fogTexture;
-    GLuint defaultVAO=0;
-    GLfloat *vertices;
-    GLuint *indices;
+    GLuint cloudsVAO;
+    GLuint cloudsVBO;
+    GLuint cloudsTexture;
+    GLuint defaultVAO = 0;
+    GLfloat* vertices;
+    GLuint* indices;
     glm::vec3* faces;
     int verticesSize = 0;
     int indicesSize = 0;
     int facesSize = 0;
     GLuint terrainTexture;
     GLuint cubemap;
-    float elapsed_time;
+    float elapsed_time = 0;
     float seed;
     bool enableAnima = false;
     bool enableFog = true;
@@ -90,6 +90,15 @@ struct Context {
     float lengthOffset = (TERRA_LENGTH * TERRA_SCALE) / 2.0f;
 };
 
+struct ContextWtr {
+    float elapsed_time = 0;
+    GLFWwindow* window;
+    GLuint program;
+    GLuint waterVAO;
+    GLuint waterVBO;
+    GLuint wtrBump;
+    GLuint defaultVAO = 0;
+};
 // Returns the value of an environment variable
 std::string getEnvVar(const std::string& name)
 {
@@ -268,8 +277,8 @@ void createRawData(Context &ctx){
             ctx.vertices[n + 7] = j % 2;
 
             //ctx.vertices[n + 8] = sin(j * 0.2) + cos(i * 0.3) + (0.2 - (-0.2)) * rand() / (RAND_MAX + 1.0) - 0.2;
-            ctx.vertices[n + 8] = noise(glm::vec2(ctx.vertices[n], ctx.vertices[n + 2])*0.5f, ctx.seed) * 5.0f + 
-                                (0.15 - (-0.15)) * rand() / (RAND_MAX + 1.0) - 0.15;
+            ctx.vertices[n + 8] = noise(glm::vec2(ctx.vertices[n], ctx.vertices[n + 2]) * 0.5f, ctx.seed) * 2.0f +
+                                  (0.15 - (-0.15)) * rand() / (RAND_MAX + 1.0) - 0.15;
         }
     
     setHeightMap(ctx);
@@ -331,6 +340,53 @@ void createRawData(Context &ctx){
         }
 }
 
+void createWater(ContextWtr& ctxWtr)
+{
+    const GLfloat vertices[] = {
+        -50.0,  0.1, -50.0,  0.0,  0.0,
+        -50.0,  0.1,  50.0,  0.0, 20.0,
+         50.0,  0.1,  50.0, 20.0, 20.0,
+         50.0,  0.1,  50.0, 20.0, 20.0,
+         50.0,  0.1, -50.0, 20.0,  0.0,
+        -50.0,  0.1, -50.0,  0.0,  0.0
+    };
+
+    // Generates and populates a vertex buffer object (VBO) for the
+    // vertices (DO NOT CHANGE THIS)
+    glGenBuffers(1, &ctxWtr.waterVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, ctxWtr.waterVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glGenTextures(1, &ctxWtr.wtrBump);
+    glBindTexture(GL_TEXTURE_2D, ctxWtr.wtrBump);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    int texW, texH, nChannels;
+    unsigned char* texData = stbi_load((texDir() + "_water.png").c_str(), &texW, &texH, &nChannels, 3);
+    if (texData)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texW, texH, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+        std::cout << "Error: texture load problem\n";
+    stbi_image_free(texData);
+
+    // Creates a vertex array object (VAO) for drawing
+    glGenVertexArrays(1, &ctxWtr.waterVAO);
+    glBindVertexArray(ctxWtr.waterVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, ctxWtr.waterVBO);
+    glEnableVertexAttribArray(POSITION);
+    glVertexAttribPointer(POSITION, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), nullptr);
+    glEnableVertexAttribArray(TEXTURE);
+    glVertexAttribPointer(TEXTURE, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void*)(3 * sizeof(float)));
+    glBindVertexArray(ctxWtr.defaultVAO); // unbinds the VAO
+}
+
 void createCube(Context& ctxSky)
 {
     // MODIFY THIS PART: Define the six faces (front, back, left,
@@ -381,7 +437,7 @@ void createCube(Context& ctxSky)
          50.0, -50.0, -50.0,
          50.0, -50.0, -50.0,
         -50.0, -50.0,  50.0,
-         50.0, -50.0,  120.0
+         50.0, -50.0,  50.0
     };
 
     // Generates and populates a vertex buffer object (VBO) for the
@@ -414,7 +470,6 @@ void createTerrain(Context& ctx)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ctx.terrainEBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * ctx.verticesSize , ctx.indices, GL_STATIC_DRAW);
 
-
     glGenTextures(1, &ctx.terrainTexture);
     glBindTexture(GL_TEXTURE_2D, ctx.terrainTexture);
 
@@ -446,7 +501,7 @@ void createTerrain(Context& ctx)
     glBindVertexArray(ctx.defaultVAO); // unbinds the VAO
 }
 
-void createFog(Context& ctx){
+void createClouds(Context& ctx) {
     GLfloat vertices[] = {
         -50.0, 6.0, -50.0, 0.0, 0.0,
         -50.0, 6.0,  50.0, 0.0, 1.0,
@@ -456,13 +511,13 @@ void createFog(Context& ctx){
          50.0, 6.0,  50.0, 1.0, 1.0
     };
 
-    
-    glGenBuffers(1, &ctx.fogVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, ctx.fogVBO);
+
+    glGenBuffers(1, &ctx.cloudsVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, ctx.cloudsVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    glGenTextures(1, &ctx.fogTexture);
-    glBindTexture(GL_TEXTURE_2D, ctx.fogTexture);
+    glGenTextures(1, &ctx.cloudsTexture);
+    glBindTexture(GL_TEXTURE_2D, ctx.cloudsTexture);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -471,7 +526,7 @@ void createFog(Context& ctx){
 
 
     int texW, texH, nChannels;
-    unsigned char* texData = stbi_load((texDir() + "fog.png").c_str(), &texW, &texH, &nChannels, STBI_rgb_alpha);
+    unsigned char* texData = stbi_load((texDir() + "clouds.png").c_str(), &texW, &texH, &nChannels, STBI_rgb_alpha);
     if (texData)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, texData);
@@ -481,14 +536,13 @@ void createFog(Context& ctx){
         std::cout << "Error: texture load problem\n";
     stbi_image_free(texData);
 
-    glGenVertexArrays(1, &ctx.fogVAO);
-    glBindVertexArray(ctx.fogVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, ctx.fogVBO);
+    glGenVertexArrays(1, &ctx.cloudsVAO);
+    glBindVertexArray(ctx.cloudsVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, ctx.cloudsVBO);
     glEnableVertexAttribArray(POSITION);
     glVertexAttribPointer(POSITION, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), nullptr);
     glEnableVertexAttribArray(TEXTURE);
-    glVertexAttribPointer(TEXTURE, 2, GL_FLOAT, GL_FALSE, 
-            5 * sizeof(float), (void*)(3*sizeof(float)));
+    glVertexAttribPointer(TEXTURE, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glBindVertexArray(ctx.defaultVAO);
 }
 
@@ -499,16 +553,16 @@ void kill(Context& ctx){
 
 }
 
-void init(Context& ctx, Context& ctxSky)
+void init(Context& ctx, Context& ctxSky, ContextWtr& ctxWtr)
 {
     ctx.program = loadShaderProgram(shaderDir() + "terrain.vert",
         shaderDir() + "terrain.frag");
     
     ctxSky.program = loadShaderProgram(shaderDir() + "skybox.vert",
                                        shaderDir() + "skybox.frag");
-    
-    ctx.programFog = loadShaderProgram(shaderDir() + "fog.vert",
-                                       shaderDir() + "fog.frag");
+
+    ctxWtr.program = loadShaderProgram(shaderDir() + "water.vert",
+                                       shaderDir() + "water.frag");
     
     ctxSky.cubemap = loadCubemap(cubemapDir() + "/Skybox/");
 
@@ -517,27 +571,28 @@ void init(Context& ctx, Context& ctxSky)
     createRawData(ctx);
     createTerrain(ctx);
     createCube(ctxSky);
-    createFog(ctx);
+    createWater(ctxWtr);
 
     ctx.elapsed_time = glfwGetTime();
 
     ctx.camPos = glm::vec3(-3.0f, 7.0f, -3.0f);
     ctx.target = glm::vec3(0.0f, 6.0f, 0.0f);
-
-    
 }
 
-// MODIFY THIS FUNCTION
-void drawTerrain(Context& ctx, Context& ctxSky)
+void drawTerrain(Context& ctx, Context& ctxSky, ContextWtr& ctxWtr, glm::vec3& backColor)
 {
+    static bool isTexture = true, isHeightMap = true, isDiffuse = true, isWtrDiffuse = true, isSpecular = true, isLight = true,
+        isAmbient = true, isSkybox = true, isNoise = true, isMoving = true, isWater = true;
 
     // Vectors and matrices for the skybox shaders
     glm::vec3 viewPos = glm::vec3(0.0f, 0.0f, 3.0f);
     glm::mat4 t_m = glm::translate(trackballGetRotationMatrix(ctx.trackball), glm::vec3(0.0f, 7.0f, 0.0f));
 
     //For camera animation
-    if (ctx.enableAnima)
+    if (isMoving)
     {
+        ctx.elapsed_time += timeDelta * cameraSpeed;
+
         ctx.camPos.x = 8.0f * cos(ctx.elapsed_time * 0.3f);
         ctx.camPos.y = 3.0f;
         ctx.camPos.z = 8.0f * sin(ctx.elapsed_time * 0.3f);
@@ -548,7 +603,7 @@ void drawTerrain(Context& ctx, Context& ctxSky)
     }
 
     // Define the model, view, and projection matrices here
-    glm::mat4 model = trackballGetRotationMatrix(ctx.trackball);
+    glm::mat4 model = glm::mat4(1.0);
     glm::mat4 model_fog = glm::mat4(1.0f);
     glm::mat4 view = glm::lookAt(ctx.camPos, ctx.target, glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 projection = glm::perspective(1.0f, 1.0f, 0.1f, 100.0f);
@@ -558,76 +613,156 @@ void drawTerrain(Context& ctx, Context& ctxSky)
     glm::mat4 mvp_fog = projection * view * model_fog;
 
     // Light
-    glm::vec3 lightPos = glm::vec3(glm::vec4(-10.0, 10.0, 0.0, 1.0));
-    glm::vec3 lightColor = glm::vec3(1.0, 1.0, 1.0);
-    glm::vec3 ambColor = glm::vec3(0.01, 0.01, 0.01);
-    glm::vec3 difColor = glm::vec3(1.0, 1.0, 1.0);
-    glm::vec3 specColor = glm::vec3(0.04, 0.04, 0.04);
-    GLfloat specPower = 4;
+    static glm::vec3 lightPos = glm::vec3(glm::vec4(0.0, 30.0, 50.0, 1.0));
+    static glm::vec3 lightColor = glm::vec3(1.0, 1.0, 1.0);
+    static glm::vec3 ambColor = glm::vec3(0.01, 0.01, 0.01);
+    static glm::vec3 difColor = glm::vec3(1.0, 1.0, 1.0);
+    static glm::vec3 wtrdifColor = glm::vec3(1.0, 1.0, 1.0);
+    static glm::vec3 wtrDifColor = glm::vec3(0.1, 0.3, 1.0);
+    static glm::vec3 wtrSpecColor = glm::vec3(0.1, 0.05, 0.00);
+    static GLfloat specPower = 4, lightIntensity = 1, ambIntensity = 1, mapHeight = 1, wavingSpeed = 1;
 
+    ctxWtr.elapsed_time += timeDelta * wavingSpeed;
     
-
-    // draw the skybox
-    glDepthMask(GL_FALSE);
-    glUseProgram(ctxSky.program);
-    glUniformMatrix4fv(glGetUniformLocation(ctxSky.program, "u_mvp"),
-        1, GL_FALSE, &mvp_fog[0][0]);
-    glUniform3fv(glGetUniformLocation(ctxSky.program, "u_view_pos"), 1, &viewPos[0]);
-    glBindVertexArray(ctxSky.terrainVAO);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, ctxSky.cubemap);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-    glDepthMask(GL_TRUE);
-
-    if(ctx.enableFog)
+    ////// GUI
+    if (ImGui::CollapsingHeader("Terrain"))
     {
-        glUseProgram(ctx.programFog);
+        ImGui::ColorEdit3("Diffuse Color", &difColor[0]);
+        ImGui::DragFloat("Height", &mapHeight, 0.1f, 0.0f, 10.0f);
+    }
+    
+    if (ImGui::CollapsingHeader("Lighting"))
+    {
+        ImGui::ColorEdit3("Light Color", &lightColor[0]);
+        ImGui::DragFloat("Light Intensity", &lightIntensity, 0.1f, 0.0f, 100.0f);
+        ImGui::SliderFloat3("Light Position", &lightPos[0], -50.0, 50.0);
+        ImGui::Checkbox("Light Enabled", &isLight);
 
-        
-        glUniformMatrix4fv(glGetUniformLocation(ctx.programFog, "u_mvp"),
-        1, GL_FALSE, &mvp[0][0]);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, ctx.fogTexture);
-        glUniform1i(glGetUniformLocation(ctx.programFog, "u_texture2"), 2);
+        ImGui::ColorEdit3("Ambient Color", &ambColor[0]);
+        ImGui::DragFloat("Ambient Intensity", &ambIntensity, 0.1f, 0.0f, 100.0f);
+        ImGui::Checkbox("Ambient Enabled", &isAmbient);
+    }
 
-        glBindVertexArray(ctx.fogVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        glBindVertexArray(ctx.defaultVAO);
-        glUseProgram(0);
+    if (ImGui::CollapsingHeader("Background"))
+    {
+        ImGui::ColorEdit3("Background Color", &backColor[0]); 
+        ImGui::Checkbox("Skybox", &isSkybox);  
+    }
+
+    if (ImGui::CollapsingHeader("Camera"))
+    {
+        ImGui::Checkbox("Moving Camera", &isMoving);  
+        if (!isMoving) {
+            ImGui::SliderFloat3("Camera Position", &ctx.camPos[0], -50.0, 50.0);  
+            ImGui::SliderFloat3("Camera Target", &ctx.target[0], -50.0, 50.0);  
+        }
+        else
+        {
+            ImGui::DragFloat("Moving Speed", &cameraSpeed, 0.05f, 0.0f, 5.0f); 
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Water"))
+    {
+        ImGui::ColorEdit3("Diffuse Color", &wtrDifColor[0]);
+        ImGui::Checkbox("Diffuse Enabled", &isWtrDiffuse);
+
+        ImGui::ColorEdit3("Specular Color", &wtrSpecColor[0]); 
+        ImGui::DragFloat("Specular Power", &specPower, 1.0f, 0.0f, 100.0f);
+        ImGui::Checkbox("Specular Enabled", &isSpecular);   
+
+        ImGui::DragFloat("Waving Speed", &wavingSpeed, 0.1f, 0.0f, 5.0f);
     }
     
 
-    
-    // Concatenate the model, view, and projection matrices to a
-    // ModelViewProjection (MVP) matrix and pass it as a uniform
-    // variable to the shader program.
-    //
-    // Hint: you pass GLM matrices to shader programs like this:
+
+    // draw the skybox
+    if (isSkybox) {
+        glDepthMask(GL_FALSE);
+        glUseProgram(ctxSky.program);
+        glUniformMatrix4fv(glGetUniformLocation(ctxSky.program, "u_mvp"),
+            1, GL_FALSE, &mvp_fog[0][0]);
+        glUniform3fv(glGetUniformLocation(ctxSky.program, "u_view_pos"), 1, &viewPos[0]);
+        glBindVertexArray(ctxSky.terrainVAO);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, ctxSky.cubemap);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glDepthMask(GL_TRUE);
+    }
+
+    /*glUseProgram(ctx.programClouds);
+
+
+    glUniformMatrix4fv(glGetUniformLocation(ctx.programClouds, "u_mvp"),
+        1, GL_FALSE, &mvp[0][0]);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, ctx.cloudsTexture);
+    glUniform1i(glGetUniformLocation(ctx.programClouds, "u_texture2"), 2);
+
+    glBindVertexArray(ctx.cloudsVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(ctx.defaultVAO);
+    glUseProgram(0);*/
 
     
-    
-    // Bind textures
-    // ...
     glUseProgram(ctx.program);
 
     // Pass uniforms to terrain shaders
     glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_mv"), 1, GL_FALSE, &mv[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(ctx.program, "u_mvp"), 1, GL_FALSE, &mvp[0][0]);
     glUniform1f(glGetUniformLocation(ctx.program, "u_time"), ctx.elapsed_time);
+    glUniform1f(glGetUniformLocation(ctx.program, "u_map_height"), mapHeight);
 
     glUniform3fv(glGetUniformLocation(ctx.program, "u_light_pos"), 1, &lightPos[0]);
     glUniform3fv(glGetUniformLocation(ctx.program, "u_light_clr"), 1, &lightColor[0]);
     glUniform3fv(glGetUniformLocation(ctx.program, "ambient_color"), 1, &ambColor[0]);
     glUniform3fv(glGetUniformLocation(ctx.program, "diffuse_color"), 1, &difColor[0]);
-    glUniform3fv(glGetUniformLocation(ctx.program, "specular_color"), 1, &specColor[0]);
-    glUniform1f(glGetUniformLocation(ctx.program, "specular_power"), specPower);
-
-    //glUniform1f(glGetUniformLocation(ctx.program, "seed"), ctx.seed);
+    glUniform1f(glGetUniformLocation(ctx.program, "u_ambient_int"), ambIntensity);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_is_amb"), (int)isAmbient);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_is_light"), (int)isLight);
+    glUniform1f(glGetUniformLocation(ctx.program, "u_light_int"), lightIntensity);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_is_diffuse"), (int)isDiffuse);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_is_texture"), (int)isTexture);
     
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, ctx.terrainTexture);
+    glUniform1i(glGetUniformLocation(ctx.program, "textureFile"), 0);
     glBindVertexArray(ctx.terrainVAO);
     glDrawElements(GL_TRIANGLES, 6 * TERRA_LENGTH*TERRA_WIDTH, GL_UNSIGNED_INT, 0);
     glBindVertexArray(ctx.defaultVAO);
+    glUseProgram(0);
+
+    if (isWater) {
+        glUseProgram(ctxWtr.program);
+        glUniformMatrix4fv(glGetUniformLocation(ctxWtr.program, "u_mvp"), 1, GL_FALSE, &mvp[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(ctxWtr.program, "u_mvp"), 1, GL_FALSE, &mvp[0][0]);
+        glUniform1f(glGetUniformLocation(ctxWtr.program, "u_time"), ctxWtr.elapsed_time);
+
+        glUniform3fv(glGetUniformLocation(ctxWtr.program, "u_light_pos"), 1, &lightPos[0]);
+        glUniform3fv(glGetUniformLocation(ctxWtr.program, "u_view_pos"), 1, &ctx.camPos[0]);
+        glUniform3fv(glGetUniformLocation(ctxWtr.program, "u_light_clr"), 1, &lightColor[0]);
+        glUniform3fv(glGetUniformLocation(ctxWtr.program, "u_ambient_color"), 1, &ambColor[0]);
+        glUniform3fv(glGetUniformLocation(ctxWtr.program, "u_wtr_diffuse_color"), 1, &wtrDifColor[0]);
+        glUniform3fv(glGetUniformLocation(ctxWtr.program, "u_specular_color"), 1, &wtrSpecColor[0]);
+        glUniform1f(glGetUniformLocation(ctxWtr.program, "u_specular_power"), specPower);
+        glUniform1f(glGetUniformLocation(ctxWtr.program, "u_ambient_int"), ambIntensity);
+        glUniform1f(glGetUniformLocation(ctxWtr.program, "u_light_int"), lightIntensity);
+        glUniform1i(glGetUniformLocation(ctxWtr.program, "u_is_spec"), (int)isSpecular);
+        glUniform1i(glGetUniformLocation(ctxWtr.program, "u_is_diffuse"), (int)isWtrDiffuse);
+        glUniform1i(glGetUniformLocation(ctxWtr.program, "u_is_amb"), (int)isAmbient);
+        glUniform1i(glGetUniformLocation(ctxWtr.program, "u_is_light"), (int)isLight);
+
+        glBindVertexArray(ctxWtr.waterVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glBindVertexArray(ctxWtr.defaultVAO);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, ctxWtr.wtrBump);
+        glUniform1i(glGetUniformLocation(ctxWtr.program, "normalMap"), 1);
+
+        glBindVertexArray(ctxWtr.wtrBump);
+        glDrawElements(GL_TRIANGLES, 6 * TERRA_LENGTH * TERRA_WIDTH, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(ctxWtr.defaultVAO);
+    }
 
     glUseProgram(0);
 }
@@ -642,13 +777,14 @@ void display(Context& ctx)
     drawMesh(ctx, ctx.program, ctx.terrainVAO);
 }*/
 
-void display(Context& ctx, Context& ctxSky)
+void display(Context& ctx, Context& ctxSky, ContextWtr& ctxWtr)
 {
-    glClearColor(0.0, 0.0, 0.0, 1.0);
+    static glm::vec3 backColor = glm::vec3(0.0, 0.0, 0.0);
+    glClearColor(backColor.x, backColor.y, backColor.z, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glEnable(GL_DEPTH_TEST); // ensures that polygons overlap correctly
-    drawTerrain(ctx, ctxSky);
+    drawTerrain(ctx, ctxSky, ctxWtr, backColor);
 }
 
 void reloadShaders(Context* ctx)
@@ -747,6 +883,7 @@ void resizeCallback(GLFWwindow* window, int width, int height)
 int main(void)
 {
     Context ctx, ctxSky;
+    ContextWtr ctxWtr;
     srand(time(NULL));
 
     // Create a GLFW window
@@ -767,6 +904,9 @@ int main(void)
     glfwSetMouseButtonCallback(ctx.window, mouseButtonCallback);
     glfwSetCursorPosCallback(ctx.window, cursorPosCallback);
     glfwSetFramebufferSizeCallback(ctx.window, resizeCallback);
+    lastTime = glfwGetTime();
+    timeDelta = 0;
+    cameraSpeed = 1;
 
     // Load OpenGL functions
     glewExperimental = true;
@@ -784,14 +924,15 @@ int main(void)
     glGenVertexArrays(1, &ctx.defaultVAO);
     glBindVertexArray(ctx.defaultVAO);
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-    init(ctx, ctxSky);
+    init(ctx, ctxSky, ctxWtr);
 
     // Start rendering loop
     while (!glfwWindowShouldClose(ctx.window)) {
         glfwPollEvents();
-        ctx.elapsed_time = glfwGetTime();
+        timeDelta = glfwGetTime() - lastTime;
+        lastTime = glfwGetTime();
         ImGui_ImplGlfwGL3_NewFrame();
-        display(ctx, ctxSky);
+        display(ctx, ctxSky, ctxWtr);
         ImGui::Render();
         glfwSwapBuffers(ctx.window);
     }
